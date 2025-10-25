@@ -4,7 +4,6 @@
 
 /**
  * 1. CONFIG (SRP: Single Responsibility Principle)
- * Maneja todas las constantes y valores de configuración.
  */
 const Config = {
   // Colores temáticos GÓTICOS/SOBRIOS para los segmentos:
@@ -20,58 +19,76 @@ const Config = {
     "#200020",
   ],
   WHEEL_DURATION: 6000, // 6 segundos
+  STORAGE_KEY: "rouletteSouls", // Nueva clave para localStorage
 };
 
 /**
  * 2. STATE MANAGER (SRP: Single Responsibility Principle)
- * Controla y encapsula el estado mutable de la aplicación (nombres y estado de giro).
+ * Ahora maneja la persistencia con localStorage.
  */
 const StateManager = (() => {
-  let names = [];
+  // Carga inicial de nombres desde localStorage o usa un array vacío.
+  let names = JSON.parse(localStorage.getItem(Config.STORAGE_KEY)) || [];
   let isSpinning = false;
+
+  const _saveToLocalStorage = () => {
+    localStorage.setItem(Config.STORAGE_KEY, JSON.stringify(names));
+  };
 
   return {
     getNames: () => [...names],
     setNames: (newNames) => {
       names = newNames;
+      _saveToLocalStorage(); // Guardar cada vez que se actualiza el array
     },
     getIsSpinning: () => isSpinning,
     setIsSpinning: (state) => {
       isSpinning = state;
     },
     addName: (name) => {
-      if (name && !names.includes(name)) {
-        names.push(name);
-        return true;
+      if (name) {
+        const uniqueName = name.trim();
+        // Evita duplicados y nombres vacíos
+        if (uniqueName && !names.includes(uniqueName)) {
+          names.push(uniqueName);
+          _saveToLocalStorage();
+          return true;
+        }
       }
       return false;
     },
     removeNameByIndex: (index) => {
       if (index >= 0 && index < names.length) {
-        const newNames = names.filter((_, i) => i !== index);
-        names = newNames;
+        names.splice(index, 1); // Uso directo de splice para mutar/actualizar
+        _saveToLocalStorage();
       }
+    },
+    removeNameByValue: (nameToRemove) => {
+      const initialLength = names.length;
+      names = names.filter((name) => name !== nameToRemove);
+      if (names.length !== initialLength) {
+        _saveToLocalStorage();
+        return true;
+      }
+      return false;
     },
     resetNames: () => {
       names = [];
+      _saveToLocalStorage();
     },
   };
 })();
 
 /**
  * 3. AUDIO CONTROLLER (SRP: Single Responsibility Principle)
- * Maneja toda la lógica de audio usando la API nativa de Audio.
- * (¡TONE.JS REMOVIDO!)
  */
 const AudioController = (() => {
-  // Ruta al archivo MP3 solicitado por el usuario
+  // Nota: Asegúrate de que 'assets/sound/win-sound.mp3' exista en tu repositorio
   const WIN_SOUND_PATH = "assets/sound/win-sound.mp3";
   const audio = new Audio(WIN_SOUND_PATH);
 
   const _playWinSound = () => {
-    // Intentar reproducir el sonido. Usamos catch para manejar el error
-    // si el navegador bloquea la reproducción sin interacción del usuario.
-    audio.currentTime = 0; // Reiniciar para permitir la reproducción rápida y repetida
+    audio.currentTime = 0;
     audio
       .play()
       .catch((e) =>
@@ -80,14 +97,12 @@ const AudioController = (() => {
   };
 
   return {
-    // Renombramos la función para ser más descriptiva
     playWinSound: _playWinSound,
   };
 })();
 
 /**
  * 4. WHEEL RENDERER (SRP: Single Responsibility Principle)
- * Maneja exclusivamente la representación visual de la ruleta (segmentos y textos).
  */
 const WheelRenderer = ((stateManager, config) => {
   const rouletteWheel = document.getElementById("rouletteWheel");
@@ -98,8 +113,8 @@ const WheelRenderer = ((stateManager, config) => {
     if (names.length === 0) {
       rouletteWheel.style.background = "#333333";
       rouletteWheel.innerHTML = `<div class="absolute inset-0 flex items-center justify-center text-xl md:text-2xl font-creepster text-orange-400 text-center p-10 drop-shadow-lg">
-							¡La Ruleta Está Vacía!<br>Añade Almas o Carga un CSV
-						</div>`;
+                ¡La Ruleta Está Vacía!<br>Añade Almas o Carga un CSV
+              </div>`;
       return;
     }
 
@@ -132,8 +147,11 @@ const WheelRenderer = ((stateManager, config) => {
 
       const nameText = document.createElement("span");
       nameText.textContent = name;
-      nameText.className =
-        "name-text absolute top-1/4 left-1/2 -translate-x-1/2 py-1 px-2 text-sm md:text-base font-bold rounded-lg max-w-[80px] truncate";
+
+      // Ajuste: Aumentar el margen del texto para segmentos grandes (pocos nombres)
+      const topPosition = names.length > 8 ? "top-1/4" : "top-[35%]";
+
+      nameText.className = `name-text absolute ${topPosition} left-1/2 -translate-x-1/2 py-1 px-2 text-sm md:text-base font-bold rounded-lg max-w-[80px] truncate`;
       nameText.style.transform = `translate(-50%, -50%) rotate(-${rotation}deg)`;
 
       textContainer.appendChild(nameText);
@@ -161,9 +179,10 @@ const WheelRenderer = ((stateManager, config) => {
 
 /**
  * 5. UI CONTROLLER (SRP: Single Responsibility Principle)
- * Maneja todos los elementos de la interfaz de usuario no relacionados con la ruleta en sí.
+ * Actualizado para manejar la eliminación individual.
  */
-const UIController = ((stateManager, audioController) => {
+const UIController = ((stateManager, audioController, wheelRenderer) => {
+  // Agregado wheelRenderer
   const spinButton = document.getElementById("spinButton");
   const winnerDisplay = document.getElementById("winnerDisplay");
   const resultBox = document.getElementById("resultBox");
@@ -177,6 +196,9 @@ const UIController = ((stateManager, audioController) => {
     spinButton.disabled = isSpinning || stateManager.getNames().length === 0;
   };
 
+  // Función de callback para eliminar nombre (será definida en App)
+  let onDeleteNameCallback = () => {};
+
   const _updateNameList = (names) => {
     nameListElement.innerHTML = "";
     if (names.length === 0) {
@@ -187,8 +209,27 @@ const UIController = ((stateManager, audioController) => {
         const li = document.createElement("li");
         li.className =
           "flex justify-between items-center p-2 bg-gray-700 rounded-md text-gray-200 hover:bg-gray-600 transition duration-100 border border-gray-600";
-        li.innerHTML = `<span>${name}</span>`;
+
+        // Añadir botón de eliminación
+        li.innerHTML = `
+          <span>${name}</span>
+          <button 
+            data-name="${name}"
+            class="delete-name-btn text-red-400 hover:text-red-600 font-bold ml-4 p-1 rounded-full leading-none transition-colors"
+            title="Eliminar alma"
+          >
+            💀
+          </button>
+        `;
         nameListElement.appendChild(li);
+      });
+
+      // Añadir evento a los nuevos botones de eliminación
+      nameListElement.querySelectorAll(".delete-name-btn").forEach((button) => {
+        button.addEventListener("click", (e) => {
+          const nameToRemove = e.currentTarget.getAttribute("data-name");
+          onDeleteNameCallback(nameToRemove);
+        });
       });
     }
     nameCountDisplay.textContent = names.length;
@@ -202,15 +243,12 @@ const UIController = ((stateManager, audioController) => {
     },
     showWinner: (winnerName) => {
       winnerDisplay.textContent = winnerName;
-
-      // 1. Reset state for animation
       resultBox.classList.remove("active");
       resultBox.classList.add("sealed-destiny-enter");
 
-      // 2. Activate animation and sound
       setTimeout(() => {
         resultBox.classList.add("active");
-        audioController.playWinSound(); // Llama a la nueva función de sonido
+        audioController.playWinSound();
       }, 10);
     },
     hideResultBox: () => {
@@ -227,12 +265,15 @@ const UIController = ((stateManager, audioController) => {
     showFinishedModal: () => {
       finishedModal.classList.remove("hidden");
     },
+    // Nuevo método para registrar el callback de eliminación
+    registerDeleteNameCallback: (callback) => {
+      onDeleteNameCallback = callback;
+    },
   };
-})(StateManager, AudioController);
+})(StateManager, AudioController, WheelRenderer);
 
 /**
  * 6. APP ORCHESTRATOR (DIP: Dependency Inversion Principle & Control)
- * Inicializa la aplicación y orquesta la interacción entre los diferentes módulos.
  */
 const App = ((stateManager, uiController, wheelRenderer, config) => {
   const nameInput = document.getElementById("nameInput");
@@ -284,7 +325,7 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
 
       uiController.showWinner(winnerName);
 
-      // Update State (Remove winner)
+      // Update State (Remove winner) - Usamos removeNameByValue por seguridad, aunque el índice debería ser correcto.
       stateManager.removeNameByIndex(winningIndex);
 
       // Update UI/Renderer
@@ -303,6 +344,14 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
     const name = nameInput.value.trim();
     if (stateManager.addName(name)) {
       nameInput.value = "";
+      wheelRenderer.render();
+      uiController.updateUI();
+    }
+  };
+
+  // Nuevo Handler para eliminar un nombre por su valor
+  const deleteNameHandler = (name) => {
+    if (stateManager.removeNameByValue(name)) {
       wheelRenderer.render();
       uiController.updateUI();
     }
@@ -338,10 +387,12 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
       });
 
       if (newNames.length > 0) {
+        // Concatenar los nuevos nombres con los existentes
         stateManager.setNames(currentNames.concat(newNames));
         wheelRenderer.render();
         uiController.updateUI();
       } else {
+        // En un entorno de usuario, esto debería ser un mensaje de error visible, no solo un console.error
         console.error(
           "ERROR: No se encontraron nombres válidos en la primera columna del archivo CSV o ya existen."
         );
@@ -355,6 +406,9 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
 
   // --- Initialization and Event Binding ---
   const init = () => {
+    // Registra el handler de eliminación en el UIController antes de la actualización inicial
+    uiController.registerDeleteNameCallback(deleteNameHandler);
+
     wheelRenderer.render();
     uiController.updateUI();
 

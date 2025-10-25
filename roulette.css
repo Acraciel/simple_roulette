@@ -158,6 +158,30 @@ h3 {
   transition: all 0.6s ease-out; /* Transición suave de 0.6s */
 }
 
+/* --- 5. Estilos para la Barra de Desplazamiento Personalizada --- */
+
+/* La pista (track) */
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #333; /* Fondo de la pista */
+}
+
+/* La manija (thumb) */
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #5a0000; /* Rojo oscuro temático */
+  border-radius: 10px;
+  border: 3px solid #333; /* Color de fondo de la pista para el borde */
+}
+
+/* Hover en la manija */
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #800000;
+}
+
+/* Ancho general de la barra (requerido para Webkit) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 12px;
+}
+
 .sealed-destiny-enter.active {
   /* Estado final - visible, nítido, en posición */
   opacity: 1;
@@ -185,5 +209,10 @@ h3 {
   .roulette-wheel {
     width: 300px;
     height: 300px;
+  }
+
+  /* Ajusta el tamaño de fuente en dispositivos móviles para una mejor lectura */
+  .roulette-wheel .name-text {
+    font-size: 0.75rem; /* 12px */
   }
 }
