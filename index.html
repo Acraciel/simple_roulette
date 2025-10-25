@@ -6,8 +6,7 @@
     <title>Ruleta de la Muerte 💀</title>
     <!-- Carga de Tailwind CSS para un diseño moderno y responsivo -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Carga de Tone.js para generar sonido -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+
     <style>
       /* Fuentes temáticas de Halloween */
       @import url("https://fonts.googleapis.com/css2?family=Creepster&family=Nosifier&display=swap");
@@ -201,8 +200,8 @@
     </style>
   </head>
   <body class="p-4 md:p-8 min-h-screen">
-    <div id="app" class="max-w-7xl mx-auto">
-      <header class="text-center mb-10">
+    <div id="app" class="max-w-7x1 mx-auto">
+      <header class="text-center mb-20">
         <h1 class="text-6xl font-extrabold text-orange-600 mb-2 drop-shadow-lg">
           💀 Ruleta de la Muerte 💀
         </h1>
@@ -408,55 +407,28 @@
 
       /**
        * 3. AUDIO CONTROLLER (SRP: Single Responsibility Principle)
-       * Maneja toda la lógica de Tone.js para el sonido de risa malvada.
+       * Maneja toda la lógica de audio usando la API nativa de Audio.
+       * (¡TONE.JS REMOVIDO!)
        */
       const AudioController = (() => {
-        // Configuración de efectos (Reverb y Distortion)
-        const reverb = new Tone.Reverb({
-          decay: 4,
-          preDelay: 0.1,
-          wet: 0.7,
-        });
-        const distortion = new Tone.Distortion(0.9).connect(reverb);
-        reverb.toDestination(); // Conectar la reverb a la salida principal
+        // Ruta al archivo MP3 solicitado por el usuario
+        const WIN_SOUND_PATH = "assets/sound/win-sound.mp3";
+        const audio = new Audio(WIN_SOUND_PATH);
 
-        const _playLaughSound = () => {
-          // Sintetizador FM para un sonido gutural
-          const synth = new Tone.FMSynth({
-            harmonicity: 0.2,
-            modulationIndex: 12,
-            oscillator: { type: "sine" },
-            modulation: { type: "square" },
-            envelope: { attack: 0.1, decay: 0.5, sustain: 0.1, release: 2 },
-          }).connect(distortion);
-
-          // Secuencia de notas muy bajas y lentas para simular el "Muajajaja"
-          const sequence = ["C1", "G0", "F0", "C1"];
-          const durations = ["1n", "1n", "1n", "2n"];
-
-          let time = Tone.now();
-          let totalDuration = 0;
-
-          sequence.forEach((note, index) => {
-            synth.triggerAttackRelease(
-              note,
-              durations[index],
-              time + totalDuration,
-              0.5
+        const _playWinSound = () => {
+          // Intentar reproducir el sonido. Usamos catch para manejar el error
+          // si el navegador bloquea la reproducción sin interacción del usuario.
+          audio.currentTime = 0; // Reiniciar para permitir la reproducción rápida y repetida
+          audio
+            .play()
+            .catch((e) =>
+              console.error("Error al reproducir el sonido de victoria:", e)
             );
-            totalDuration += Tone.Time(durations[index]).toSeconds() * 0.8;
-          });
         };
 
         return {
-          playEvilLaugh: () => {
-            if (Tone.context.state !== "running") {
-              // Iniciar AudioContext si es necesario (requiere clic de usuario)
-              Tone.start().then(() => _playLaughSound());
-            } else {
-              _playLaughSound();
-            }
-          },
+          // Renombramos la función para ser más descriptiva
+          playWinSound: _playWinSound,
         };
       })();
 
@@ -473,8 +445,8 @@
           if (names.length === 0) {
             rouletteWheel.style.background = "#333333";
             rouletteWheel.innerHTML = `<div class="absolute inset-0 flex items-center justify-center text-xl md:text-2xl font-creepster text-orange-400 text-center p-10 drop-shadow-lg">
-                        ¡La Ruleta Está Vacía!<br>Añade Almas o Carga un CSV
-                    </div>`;
+							¡La Ruleta Está Vacía!<br>Añade Almas o Carga un CSV
+						</div>`;
             return;
           }
 
@@ -586,7 +558,7 @@
             // 2. Activate animation and sound
             setTimeout(() => {
               resultBox.classList.add("active");
-              audioController.playEvilLaugh(); // Reproducir el sonido
+              audioController.playWinSound(); // Llama a la nueva función de sonido
             }, 10);
           },
           hideResultBox: () => {
