@@ -1,13 +1,18 @@
 {
-  "name": "halloween_roulette_simple",
+  "name": "roulette_simple",
   "version": "1.0.0",
-  "description": "",
+  "description": "roulette simple halloween version",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "roulette",
+    "javascript",
+    "css",
+    "html"
+  ],
+  "author": "Rodrigo Rojas S.",
+  "license": "Apache-2.0",
   "packageManager": "pnpm@10.19.0"
 }
