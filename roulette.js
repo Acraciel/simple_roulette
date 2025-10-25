@@ -104,6 +104,10 @@ const StateManager = (() => {
       return false;
     },
 
+    resetIdCounter: () => {
+      nextId = 1;
+    },
+
     resetNames: () => {
       names = [];
       _saveToLocalStorage();
@@ -501,8 +505,9 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
 
   const resetHandler = () => {
     stateManager.resetNames();
+    stateManager.resetIdCounter();
     stateManager.clearWinner();
-    wheelRenderer.stopSpin(0); // Reset visual position
+    wheelRenderer.stopSpin(0);
     uiController.hideResultBox();
     wheelRenderer.render();
     uiController.updateUI();
