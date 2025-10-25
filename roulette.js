@@ -8,17 +8,43 @@
 const Config = {
   // Colores temáticos GÓTICOS/SOBRIOS para los segmentos:
   COLORS: [
-    "#5A0000",
-    "#320032",
-    "#004D00",
-    "#800000",
-    "#4B0082",
-    "#220000",
-    "#003300",
-    "#6A006A",
-    "#200020",
+    "#400000", // Rojo oscuro (Sangre Seca)
+    "#2A0A2A", // Morado fúnebre
+    "#1A301A", // Verde moho
+    "#550000", // Rojo óxido intenso
+    "#300050", // Púrpura noche
+    "#101010", // Negro carbón profundo
+    "#660000", // Rojo vino
+    "#3A0A3A", // Morado sombra
+    "#224422", // Verde pantano
+    "#700000", // Rojo ladrillo
+    "#440077", // Índigo espectral
+    "#1B1B1B", // Gris basalto
+    "#800000", // Rojo visceral
+    "#500050", // Magenta macabro
+    "#335533", // Verde esmeralda sucio
+    "#900000", // Rojo carmesí
+    "#5D0093", // Violeta cadavérico
+    "#252525", // Gris medianoche
+    "#A00000", // Rojo brillante
+    "#660066", // Morado ciruela
+    "#446644", // Verde militar
+    "#B00000", // Rojo infierno
+    "#7700AA", // Púrpura oscuro
+    "#2F2F2F", // Negro ceniza
+    "#C00000", // Rojo lava
+    "#8800BB", // Magenta oscuro
+    "#557755", // Verde oliva oscuro
+    "#D00000", // Rojo vívido
+    "#9900CC", // Violeta vampiro
+    "#353535", // Gris pizarra
+    "#E00000", // Rojo arterial
+    "#AA00DD", // Morado veneno
+    "#668866", // Verde pantano claro
+    "#F00000", // Rojo sangre fresco
+    "#BB00EE", // Púrpura neón
   ],
-  WHEEL_DURATION: 6000, // 6 segundos
+  WHEEL_DURATION: 4000, // 6 segundos
   STORAGE_KEY: "rouletteSouls",
   CONTINUE_FADE_DURATION: 500, // Nuevo: Duración del desvanecimiento (0.5s)
 };
@@ -155,7 +181,7 @@ const WheelRenderer = ((stateManager, config) => {
       const nameText = document.createElement("span");
       nameText.textContent = name;
 
-      const topPosition = names.length > 8 ? "top-1/4" : "top-[35%]";
+      const topPosition = names.length > 30 ? "top-[1%]" : "top-[3%]";
 
       // NUEVA CLASE: Marcar el segmento ganador
       const isWinnerSegment = index === stateManager.getWinnerIndex();
@@ -163,7 +189,7 @@ const WheelRenderer = ((stateManager, config) => {
       nameText.className = `name-text absolute ${topPosition} left-1/2 -translate-x-1/2 py-1 px-2 text-sm md:text-base font-bold rounded-lg max-w-[80px] truncate ${
         isWinnerSegment ? "winner-segment" : ""
       }`;
-      nameText.style.transform = `translate(-50%, -50%) rotate(-${rotation}deg)`;
+      nameText.style.transform = `translate(-50%, -50%)`;
 
       textContainer.appendChild(nameText);
       rouletteWheel.appendChild(textContainer);
