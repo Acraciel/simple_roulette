@@ -54,9 +54,19 @@ const Config = {
  * Ahora guarda temporalmente al ganador para eliminarlo después.
  */
 const StateManager = (() => {
-  let names = JSON.parse(localStorage.getItem(Config.STORAGE_KEY)) || [];
+  let rawNames = JSON.parse(localStorage.getItem(Config.STORAGE_KEY)) || [];
+
+  if (rawNames.length > 0 && typeof rawNames[0] === "string") {
+    let tempId = 1;
+    rawNames = rawNames.map((name) => ({ id: tempId++, name: name }));
+  }
+
+  let names = rawNames;
+  // Contador global de IDS únicos
+  let nextId =
+    names.length > 0 ? Math.max(...names.map((item) => item.id)) + 1 : 1;
   let isSpinning = false;
-  let winnerIndex = -1; // Nuevo: Para guardar el índice del ganador
+  let winnerIndex = -1;
 
   const _saveToLocalStorage = () => {
     localStorage.setItem(Config.STORAGE_KEY, JSON.stringify(names));
@@ -75,29 +85,25 @@ const StateManager = (() => {
     addName: (name) => {
       if (name) {
         const uniqueName = name.trim();
-        if (uniqueName && !names.includes(uniqueName)) {
-          names.push(uniqueName);
+        if (uniqueName && !names.some((item) => item.name === uniqueName)) {
+          names.push({ id: nextId++, name: uniqueName });
           _saveToLocalStorage();
           return true;
         }
       }
       return false;
     },
-    removeNameByIndex: (index) => {
-      if (index >= 0 && index < names.length) {
-        names.splice(index, 1);
-        _saveToLocalStorage();
-      }
-    },
-    removeNameByValue: (nameToRemove) => {
+
+    removeNameById: (idToRemove) => {
       const initialLength = names.length;
-      names = names.filter((name) => name !== nameToRemove);
+      names = names.filter((item) => item.id !== idToRemove);
       if (names.length !== initialLength) {
         _saveToLocalStorage();
         return true;
       }
       return false;
     },
+
     resetNames: () => {
       names = [];
       _saveToLocalStorage();
@@ -109,6 +115,15 @@ const StateManager = (() => {
     getWinnerIndex: () => winnerIndex,
     clearWinner: () => {
       winnerIndex = -1;
+    },
+    // Obtener sólo la lista de nombres para la rueda
+    getNameValues: () => names.map((item) => item.name),
+    // NUEVO: Obtener el ID del ganador (basado en el índice)
+    getWinnerId: () => {
+      if (winnerIndex !== -1 && names[winnerIndex]) {
+        return names[winnerIndex].id;
+      }
+      return -1;
     },
   };
 })();
@@ -156,7 +171,7 @@ const WheelRenderer = ((stateManager, config) => {
     let currentAngle = 0;
 
     // 1. Crear el conic-gradient para los segmentos
-    names.forEach((name, index) => {
+    names.forEach((item, index) => {
       const color = getColor(index);
       const nextAngle = currentAngle + segmentAngle;
       gradient += `${color} ${currentAngle}deg ${nextAngle}deg`;
@@ -170,7 +185,7 @@ const WheelRenderer = ((stateManager, config) => {
     rouletteWheel.innerHTML = "";
 
     // 2. Posicionar y rotar los textos
-    names.forEach((name, index) => {
+    names.forEach((item, index) => {
       const textContainer = document.createElement("div");
       const rotation = index * segmentAngle + segmentAngle / 2;
 
@@ -179,26 +194,20 @@ const WheelRenderer = ((stateManager, config) => {
       textContainer.style.transform = `rotate(${rotation}deg)`;
 
       const nameText = document.createElement("span");
-      nameText.textContent = name;
+      nameText.textContent = item.id;
 
-      const topPosition = names.length > 30 ? "top-[1%]" : "top-[3%]";
+      const topPosition = names.length > 30 ? "top-[2%]" : "top-[4%]";
 
       // NUEVA CLASE: Marcar el segmento ganador
       const isWinnerSegment = index === stateManager.getWinnerIndex();
 
-      nameText.className = `name-text absolute ${topPosition} left-1/2 -translate-x-1/2 py-1 px-2 text-sm md:text-base font-bold rounded-lg max-w-[80px] truncate ${
+      nameText.className = `name-text absolute ${topPosition} left-1/2 -translate-x-1/2 py-1 px-2 text-xl md:text-2xl font-bold rounded-lg ${
         isWinnerSegment ? "winner-segment" : ""
       }`;
       nameText.style.transform = `translate(-50%, -50%)`;
-
       textContainer.appendChild(nameText);
       rouletteWheel.appendChild(textContainer);
     });
-
-    // Si hay un ganador, lo resaltamos y preparamos el efecto de desvanecimiento
-    if (stateManager.getWinnerIndex() !== -1) {
-      // En este punto, el segmento ganador tiene la clase 'winner-segment'
-    }
   };
 
   // NUEVO MÉTODO: Para el efecto de desvanecimiento antes de la eliminación
@@ -282,15 +291,18 @@ const UIController = ((
       emptyMessage.classList.remove("hidden");
     } else {
       emptyMessage.classList.add("hidden");
-      names.forEach((name) => {
+      names.forEach((item, index) => {
         const li = document.createElement("li");
         li.className =
           "flex justify-between items-center p-2 bg-gray-700 rounded-md text-gray-200 hover:bg-gray-600 transition duration-100 border border-gray-600";
 
         li.innerHTML = `
-          <span>${name}</span>
+          <span class="flex items-center">
+            <span class="font-mono font-extrabold text-orange-400 mr-3 text-lg">${item.id}.</span>
+            <span>${item.name}</span>
+          </span>
           <button 
-            data-name="${name}"
+            data-name="${item.id}"
             class="delete-name-btn text-red-400 hover:text-red-600 font-bold ml-4 p-1 rounded-full leading-none transition-colors"
             title="Eliminar alma"
           >
@@ -302,8 +314,8 @@ const UIController = ((
 
       nameListElement.querySelectorAll(".delete-name-btn").forEach((button) => {
         button.addEventListener("click", (e) => {
-          const nameToRemove = e.currentTarget.getAttribute("data-name");
-          onDeleteNameCallback(nameToRemove);
+          const idToRemove = parseInt(e.currentTarget.getAttribute("data-id"));
+          onDeleteNameCallback(idToRemove);
         });
       });
     }
@@ -407,7 +419,7 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
 
     // 2. Select Winner and Calculate Rotation
     const winningIndex = Math.floor(Math.random() * numNames);
-    const winnerName = names[winningIndex];
+    const winnerName = names[winningIndex].name;
 
     stateManager.setWinnerIndex(winningIndex); // Guardar el índice del ganador
 
@@ -442,7 +454,7 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
 
   // NUEVA FUNCIÓN: Maneja la eliminación del ganador y la siguiente ronda
   const continueGame = () => {
-    const winningIndex = stateManager.getWinnerIndex();
+    const winningId = stateManager.getWinnerId();
 
     // Iniciar el efecto de desvanecimiento
     wheelRenderer.fadeOutWinner();
@@ -450,8 +462,8 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
     // Esperar a que termine el desvanecimiento para eliminar el elemento
     setTimeout(() => {
       // 1. Eliminar el ganador
-      if (winningIndex !== -1) {
-        stateManager.removeNameByIndex(winningIndex);
+      if (winningId !== -1) {
+        stateManager.removeNameById(winningId);
       }
       stateManager.clearWinner(); // Limpiar el índice guardado
 
@@ -480,8 +492,8 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
     }
   };
 
-  const deleteNameHandler = (name) => {
-    if (stateManager.removeNameByValue(name)) {
+  const deleteNameHandler = (id) => {
+    if (stateManager.removeNameById(id)) {
       wheelRenderer.render();
       uiController.updateUI();
     }
@@ -510,15 +522,16 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
         const firstColumn = line.split(",")[0].trim();
         if (
           firstColumn &&
-          !newNames.includes(firstColumn) &&
-          !currentNames.includes(firstColumn)
+          !newNames.some((item) => item.name === firstColumn) &&
+          !currentNames.some((item) => item.name === firstColumn)
         ) {
           newNames.push(firstColumn);
         }
       });
 
       if (newNames.length > 0) {
-        stateManager.setNames(currentNames.concat(newNames));
+        //stateManager.setNames(currentNames.concat(newNames));
+        newNames.forEach((name) => stateManager.addName(name));
         wheelRenderer.render();
         uiController.updateUI();
       } else {
@@ -537,6 +550,7 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
   const init = () => {
     // Registrar el nuevo callback para el botón 'Continuar'
     uiController.registerContinueCallback(continueGame);
+    // This now get an id not a name
     uiController.registerDeleteNameCallback(deleteNameHandler);
 
     wheelRenderer.render();
