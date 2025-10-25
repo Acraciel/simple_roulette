@@ -33,15 +33,27 @@
           <div class="mb-6">
             <label
               for="csvFile"
-              class="block text-gray-300 text-sm font-bold mb-2"
-              >Cargar Nombres desde CSV:</label
+              class="block text-sm font-bold mb-2 w-full flex items-center justify-center bg-red-800 hover:bg-red-900 text-yellow-300 py-2 px-4 rounded-lg transition duration-200 shadow-md cursor-pointer border-b-4 border-red-950 active:border-b-0"
             >
-            <input
-              type="file"
-              id="csvFile"
-              accept=".csv"
-              class="w-full p-3 border border-gray-600 rounded-lg bg-gray-700 text-white focus:ring-orange-500 focus:border-orange-500 transition duration-150"
-            />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5 mr-2"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  d="M5 2a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V4a2 2 0 00-2-2H5zm10 2a1 1 0 011 1v1h-3.586l-1.707 1.707A1 1 0 018.707 8H4v7a1 1 0 01-1 1H5a1 1 0 011 1z"
+                />
+              </svg>
+              Cargar Almas (CSV)
+            </label>
+
+            <input type="file" id="csvFile" accept=".csv" class="hidden" />
+
+            <p id="csvFileNameDisplay" class="text-gray-400 text-xs mt-2">
+              No se ha seleccionado ningún archivo.
+            </p>
+
             <p class="text-gray-400 text-xs mt-1">
               El CSV debe tener los nombres en la primera columna.
             </p>
@@ -61,13 +73,13 @@
           <div class="flex flex-col space-y-3 mb-6">
             <button
               id="spinButton"
-              class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3 px-6 rounded-lg transition duration-200 shadow-md disabled:bg-gray-600 disabled:cursor-not-allowed border-b-4 border-red-900 active:border-b-0"
+              class="w-full bg-red-800 hover:bg-red-900 text-yellow-300 font-extrabold py-3 px-6 rounded-lg transition duration-200 shadow-xl disabled:bg-gray-600 disabled:cursor-not-allowed border-b-4 border-red-950 active:border-b-0 transform active:translate-y-0.5 tracking-wider"
             >
               ¡Girar la Rueda del Destino!
             </button>
             <button
               id="resetButton"
-              class="w-full bg-gray-700 hover:bg-gray-900 text-orange-400 font-bold py-3 px-6 rounded-lg transition duration-200 shadow-md border-b-4 border-gray-900 active:border-b-0"
+              class="w-full bg-gray-700 hover:bg-gray-600 text-orange-400 font-bold py-3 px-6 rounded-lg transition duration-200 shadow-md border-b-4 border-gray-900 active:border-b-0"
             >
               Reiniciar Almas
             </button>
