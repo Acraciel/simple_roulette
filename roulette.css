@@ -195,6 +195,15 @@ h3 {
   text-shadow: 0 0 10px #800000, 0 0 20px #ff0000; /* Doble resplandor de sangre */
 }
 
+/* Estilo para el texto del segmento que fue elegido */
+.roulette-wheel .winner-segment {
+  /* Resaltar el texto para el ganador */
+  color: #ffcc00; /* Dorado o amarillo para el elegido */
+  border-color: #ff6600; /* Borde naranja brillante */
+  box-shadow: 0 0 10px #ffcc00, 0 0 20px #ff6600; /* Resplandor intenso */
+  transition: all 0.3s ease-in-out;
+}
+
 /* Responsive adjustments */
 @media (max-width: 640px) {
   .roulette-container {

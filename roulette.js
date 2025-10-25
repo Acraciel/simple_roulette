@@ -19,17 +19,18 @@ const Config = {
     "#200020",
   ],
   WHEEL_DURATION: 6000, // 6 segundos
-  STORAGE_KEY: "rouletteSouls", // Nueva clave para localStorage
+  STORAGE_KEY: "rouletteSouls",
+  CONTINUE_FADE_DURATION: 500, // Nuevo: Duración del desvanecimiento (0.5s)
 };
 
 /**
  * 2. STATE MANAGER (SRP: Single Responsibility Principle)
- * Ahora maneja la persistencia con localStorage.
+ * Ahora guarda temporalmente al ganador para eliminarlo después.
  */
 const StateManager = (() => {
-  // Carga inicial de nombres desde localStorage o usa un array vacío.
   let names = JSON.parse(localStorage.getItem(Config.STORAGE_KEY)) || [];
   let isSpinning = false;
+  let winnerIndex = -1; // Nuevo: Para guardar el índice del ganador
 
   const _saveToLocalStorage = () => {
     localStorage.setItem(Config.STORAGE_KEY, JSON.stringify(names));
@@ -39,7 +40,7 @@ const StateManager = (() => {
     getNames: () => [...names],
     setNames: (newNames) => {
       names = newNames;
-      _saveToLocalStorage(); // Guardar cada vez que se actualiza el array
+      _saveToLocalStorage();
     },
     getIsSpinning: () => isSpinning,
     setIsSpinning: (state) => {
@@ -48,7 +49,6 @@ const StateManager = (() => {
     addName: (name) => {
       if (name) {
         const uniqueName = name.trim();
-        // Evita duplicados y nombres vacíos
         if (uniqueName && !names.includes(uniqueName)) {
           names.push(uniqueName);
           _saveToLocalStorage();
@@ -59,7 +59,7 @@ const StateManager = (() => {
     },
     removeNameByIndex: (index) => {
       if (index >= 0 && index < names.length) {
-        names.splice(index, 1); // Uso directo de splice para mutar/actualizar
+        names.splice(index, 1);
         _saveToLocalStorage();
       }
     },
@@ -76,6 +76,14 @@ const StateManager = (() => {
       names = [];
       _saveToLocalStorage();
     },
+    // Nuevos métodos para gestionar el ganador
+    setWinnerIndex: (index) => {
+      winnerIndex = index;
+    },
+    getWinnerIndex: () => winnerIndex,
+    clearWinner: () => {
+      winnerIndex = -1;
+    },
   };
 })();
 
@@ -83,7 +91,6 @@ const StateManager = (() => {
  * 3. AUDIO CONTROLLER (SRP: Single Responsibility Principle)
  */
 const AudioController = (() => {
-  // Nota: Asegúrate de que 'assets/sound/win-sound.mp3' exista en tu repositorio
   const WIN_SOUND_PATH = "assets/sound/win-sound.mp3";
   const audio = new Audio(WIN_SOUND_PATH);
 
@@ -148,15 +155,53 @@ const WheelRenderer = ((stateManager, config) => {
       const nameText = document.createElement("span");
       nameText.textContent = name;
 
-      // Ajuste: Aumentar el margen del texto para segmentos grandes (pocos nombres)
       const topPosition = names.length > 8 ? "top-1/4" : "top-[35%]";
 
-      nameText.className = `name-text absolute ${topPosition} left-1/2 -translate-x-1/2 py-1 px-2 text-sm md:text-base font-bold rounded-lg max-w-[80px] truncate`;
+      // NUEVA CLASE: Marcar el segmento ganador
+      const isWinnerSegment = index === stateManager.getWinnerIndex();
+
+      nameText.className = `name-text absolute ${topPosition} left-1/2 -translate-x-1/2 py-1 px-2 text-sm md:text-base font-bold rounded-lg max-w-[80px] truncate ${
+        isWinnerSegment ? "winner-segment" : ""
+      }`;
       nameText.style.transform = `translate(-50%, -50%) rotate(-${rotation}deg)`;
 
       textContainer.appendChild(nameText);
       rouletteWheel.appendChild(textContainer);
     });
+
+    // Si hay un ganador, lo resaltamos y preparamos el efecto de desvanecimiento
+    if (stateManager.getWinnerIndex() !== -1) {
+      // En este punto, el segmento ganador tiene la clase 'winner-segment'
+    }
+  };
+
+  // NUEVO MÉTODO: Para el efecto de desvanecimiento antes de la eliminación
+  const fadeOutWinner = () => {
+    const winnerSegments = rouletteWheel.querySelectorAll(".winner-segment");
+    rouletteWheel.style.transition = `opacity ${
+      config.CONTINUE_FADE_DURATION / 1000
+    }s ease-in-out`;
+
+    // Aplicar el efecto visual de 'desvanecimiento' al segmento ganador
+    winnerSegments.forEach((segment) => {
+      segment.style.transition =
+        "opacity 0.5s ease-in-out, transform 0.5s ease-in-out";
+      segment.style.opacity = "0"; // Desaparecer el texto
+      // Podemos también desvanecer el color de fondo del segmento
+      segment.closest(".name-text").style.backgroundColor = "transparent";
+    });
+
+    // Nota: El desvanecimiento del color del *conic-gradient* es más complejo,
+    // así que nos enfocamos en el texto y el borde visual.
+  };
+
+  // NUEVO MÉTODO: Limpiar el estado de desvanecimiento
+  const resetFade = () => {
+    rouletteWheel.style.transition = rouletteWheel.style.transition.replace(
+      /opacity.*?,/g,
+      ""
+    ); // Remover la transición de opacidad
+    rouletteWheel.style.opacity = "1";
   };
 
   return {
@@ -174,15 +219,21 @@ const WheelRenderer = ((stateManager, config) => {
       rouletteWheel.style.transition = "none";
       rouletteWheel.style.transform = `rotate(${normalizedRotation}deg)`;
     },
+    fadeOutWinner, // Exportar el nuevo método
+    resetFade, // Exportar el nuevo método
   };
 })(StateManager, Config);
 
 /**
  * 5. UI CONTROLLER (SRP: Single Responsibility Principle)
- * Actualizado para manejar la eliminación individual.
  */
-const UIController = ((stateManager, audioController, wheelRenderer) => {
-  // Agregado wheelRenderer
+const UIController = ((
+  stateManager,
+  audioController,
+  wheelRenderer,
+  config
+) => {
+  // Agregado config
   const spinButton = document.getElementById("spinButton");
   const winnerDisplay = document.getElementById("winnerDisplay");
   const resultBox = document.getElementById("resultBox");
@@ -192,12 +243,12 @@ const UIController = ((stateManager, audioController, wheelRenderer) => {
   const finishedModal = document.getElementById("finishedModal");
   const rouletteContainer = document.getElementById("rouletteContainer");
 
+  let onDeleteNameCallback = () => {};
+  let onContinueCallback = () => {}; // Nuevo: Callback para el botón Continuar
+
   const toggleSpinButton = (isSpinning) => {
     spinButton.disabled = isSpinning || stateManager.getNames().length === 0;
   };
-
-  // Función de callback para eliminar nombre (será definida en App)
-  let onDeleteNameCallback = () => {};
 
   const _updateNameList = (names) => {
     nameListElement.innerHTML = "";
@@ -210,7 +261,6 @@ const UIController = ((stateManager, audioController, wheelRenderer) => {
         li.className =
           "flex justify-between items-center p-2 bg-gray-700 rounded-md text-gray-200 hover:bg-gray-600 transition duration-100 border border-gray-600";
 
-        // Añadir botón de eliminación
         li.innerHTML = `
           <span>${name}</span>
           <button 
@@ -224,7 +274,6 @@ const UIController = ((stateManager, audioController, wheelRenderer) => {
         nameListElement.appendChild(li);
       });
 
-      // Añadir evento a los nuevos botones de eliminación
       nameListElement.querySelectorAll(".delete-name-btn").forEach((button) => {
         button.addEventListener("click", (e) => {
           const nameToRemove = e.currentTarget.getAttribute("data-name");
@@ -243,15 +292,41 @@ const UIController = ((stateManager, audioController, wheelRenderer) => {
     },
     showWinner: (winnerName) => {
       winnerDisplay.textContent = winnerName;
+
+      // NUEVO: Añadir botón de Continuar
+      const continueButtonId = "continueButton";
+      const existingButton = document.getElementById(continueButtonId);
+
+      if (!existingButton) {
+        const continueBtn = document.createElement("button");
+        continueBtn.id = continueButtonId;
+        continueBtn.textContent = "¡Continuar con el Sacrificio!";
+        continueBtn.className =
+          "mt-4 w-full bg-orange-700 hover:bg-orange-800 text-white font-bold py-2 px-4 rounded-lg transition duration-200 shadow-md border-b-4 border-orange-900 active:border-b-0";
+        continueBtn.addEventListener("click", onContinueCallback);
+        resultBox.appendChild(continueBtn);
+      }
+
+      // 1. Reset state for animation
       resultBox.classList.remove("active");
       resultBox.classList.add("sealed-destiny-enter");
 
+      // 2. Activate animation and sound
       setTimeout(() => {
         resultBox.classList.add("active");
         audioController.playWinSound();
       }, 10);
+
+      // Desactivar el botón de giro hasta que se continúe
+      spinButton.disabled = true;
     },
     hideResultBox: () => {
+      // Remover el botón de Continuar cuando se oculta
+      const continueBtn = document.getElementById("continueButton");
+      if (continueBtn) {
+        continueBtn.remove();
+      }
+
       resultBox.classList.remove("active");
       resultBox.classList.add("sealed-destiny-enter");
     },
@@ -265,12 +340,15 @@ const UIController = ((stateManager, audioController, wheelRenderer) => {
     showFinishedModal: () => {
       finishedModal.classList.remove("hidden");
     },
-    // Nuevo método para registrar el callback de eliminación
     registerDeleteNameCallback: (callback) => {
       onDeleteNameCallback = callback;
     },
+    // Nuevo: Registro del callback de Continuar
+    registerContinueCallback: (callback) => {
+      onContinueCallback = callback;
+    },
   };
-})(StateManager, AudioController, WheelRenderer);
+})(StateManager, AudioController, WheelRenderer, Config);
 
 /**
  * 6. APP ORCHESTRATOR (DIP: Dependency Inversion Principle & Control)
@@ -295,6 +373,7 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
     uiController.updateUI();
     uiController.hideResultBox();
     uiController.toggleSplatter(true);
+    stateManager.clearWinner(); // Limpiar cualquier ganador previo
 
     const names = stateManager.getNames();
     const numNames = names.length;
@@ -304,8 +383,9 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
     const winningIndex = Math.floor(Math.random() * numNames);
     const winnerName = names[winningIndex];
 
+    stateManager.setWinnerIndex(winningIndex); // Guardar el índice del ganador
+
     const centerOfSegment = winningIndex * segmentAngle + segmentAngle / 2;
-    // Rotación total: 5 vueltas completas + la rotación necesaria para apuntar al segmento
     const totalRotation =
       360 * 5 +
       (360 - centerOfSegment) +
@@ -323,20 +403,45 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
       const normalizedRotation = totalRotation % 360;
       wheelRenderer.stopSpin(normalizedRotation);
 
+      wheelRenderer.render(); // Re-renderizar para marcar el segmento ganador visualmente
       uiController.showWinner(winnerName);
 
-      // Update State (Remove winner) - Usamos removeNameByValue por seguridad, aunque el índice debería ser correcto.
-      stateManager.removeNameByIndex(winningIndex);
+      // ******* CAMBIO CLAVE AQUI *******
+      // NO REMOVER NI RE-RENDERIZAR AÚN.
+      // Permitimos que el UIController maneje el estado de 'isSpinning'.
+      stateManager.setIsSpinning(false); // Listo para el botón de 'Continuar'
+      // *********************************
+    }, config.WHEEL_DURATION);
+  };
 
-      // Update UI/Renderer
+  // NUEVA FUNCIÓN: Maneja la eliminación del ganador y la siguiente ronda
+  const continueGame = () => {
+    const winningIndex = stateManager.getWinnerIndex();
+
+    // Iniciar el efecto de desvanecimiento
+    wheelRenderer.fadeOutWinner();
+
+    // Esperar a que termine el desvanecimiento para eliminar el elemento
+    setTimeout(() => {
+      // 1. Eliminar el ganador
+      if (winningIndex !== -1) {
+        stateManager.removeNameByIndex(winningIndex);
+      }
+      stateManager.clearWinner(); // Limpiar el índice guardado
+
+      // 2. Re-renderizar la rueda sin el ganador
+      wheelRenderer.resetFade(); // Limpiar estilos de fade
       wheelRenderer.render();
-      stateManager.setIsSpinning(false);
-      uiController.updateUI();
 
+      // 3. Limpiar la UI
+      uiController.hideResultBox();
+      uiController.updateUI(); // Esto reactiva el botón de giro
+
+      // Mostrar modal si se terminaron las almas
       if (stateManager.getNames().length === 0) {
         uiController.showFinishedModal();
       }
-    }, config.WHEEL_DURATION);
+    }, config.CONTINUE_FADE_DURATION);
   };
 
   // --- Auxiliary Handlers ---
@@ -349,7 +454,6 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
     }
   };
 
-  // Nuevo Handler para eliminar un nombre por su valor
   const deleteNameHandler = (name) => {
     if (stateManager.removeNameByValue(name)) {
       wheelRenderer.render();
@@ -359,6 +463,7 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
 
   const resetHandler = () => {
     stateManager.resetNames();
+    stateManager.clearWinner();
     wheelRenderer.stopSpin(0); // Reset visual position
     uiController.hideResultBox();
     wheelRenderer.render();
@@ -367,6 +472,7 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
   };
 
   const loadNamesFromCSV = (file) => {
+    // (Lógica de CSV... sin cambios)
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target.result;
@@ -376,7 +482,6 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
 
       lines.forEach((line) => {
         const firstColumn = line.split(",")[0].trim();
-        // Previene duplicados
         if (
           firstColumn &&
           !newNames.includes(firstColumn) &&
@@ -387,12 +492,10 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
       });
 
       if (newNames.length > 0) {
-        // Concatenar los nuevos nombres con los existentes
         stateManager.setNames(currentNames.concat(newNames));
         wheelRenderer.render();
         uiController.updateUI();
       } else {
-        // En un entorno de usuario, esto debería ser un mensaje de error visible, no solo un console.error
         console.error(
           "ERROR: No se encontraron nombres válidos en la primera columna del archivo CSV o ya existen."
         );
@@ -406,7 +509,8 @@ const App = ((stateManager, uiController, wheelRenderer, config) => {
 
   // --- Initialization and Event Binding ---
   const init = () => {
-    // Registra el handler de eliminación en el UIController antes de la actualización inicial
+    // Registrar el nuevo callback para el botón 'Continuar'
+    uiController.registerContinueCallback(continueGame);
     uiController.registerDeleteNameCallback(deleteNameHandler);
 
     wheelRenderer.render();
